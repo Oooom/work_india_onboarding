@@ -21,6 +21,7 @@ from   threading                 import Timer
 import json
 import pymysql
 import hashlib
+import random
 
 conn = pymysql.connect(host="127.0.0.1",
                        user="root",
@@ -195,7 +196,7 @@ def randomly_assign_order(order_id, dummy):
             conn.commit()
 
         else:
-            cursor.execute("UPDATE orders SET status='partner_assigned', partner_id="+str(all_partners[0])+" WHERE order_id="+ str(order_id))
+            cursor.execute( "UPDATE orders SET status='partner_assigned', partner_id=" + str(all_partners[ random.randint(0, len(all_partners)-1) ]) + " WHERE order_id=" + str(order_id))
             conn.commit()
 
 
@@ -391,7 +392,7 @@ def partner_accept_order(request):
     order_id   = request.GET.get('order_id')
 
     try:
-        cursor.execute("UPDATE orders SET partner_id="+partner_id+" WHERE order_id="+order_id+" status='partner_assigned';")
+        cursor.execute("UPDATE orders SET partner_id="+partner_id+", status='partner_assigned' WHERE order_id="+order_id+";")
         conn.commit()
 
         return Response({
