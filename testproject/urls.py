@@ -29,6 +29,93 @@ conn = pymysql.connect(host="127.0.0.1",
 cursor = conn.cursor()
 
 
+# The Encryption Function
+def cipher_encrypt(plain_text, key):
+
+    encrypted = ""
+
+    for c in plain_text:
+
+        if c.isupper():  #check if it's an uppercase character
+
+            c_index = ord(c) - ord('A')
+
+            # shift the current character by key positions
+            c_shifted = (c_index + key) % 26 + ord('A')
+
+            c_new = chr(c_shifted)
+
+            encrypted += c_new
+
+        elif c.islower():  #check if its a lowecase character
+
+            # subtract the unicode of 'a' to get index in [0-25) range
+            c_index = ord(c) - ord('a')
+
+            c_shifted = (c_index + key) % 26 + ord('a')
+
+            c_new = chr(c_shifted)
+
+            encrypted += c_new
+
+        elif c.isdigit():
+
+            # if it's a number,shift its actual value
+            c_new = (int(c) + key) % 10
+
+            encrypted += str(c_new)
+
+        else:
+
+            # if its neither alphabetical nor a number, just leave it like that
+            encrypted += c
+
+    return encrypted
+
+
+# The Decryption Function
+def cipher_decrypt(ciphertext, key):
+
+    decrypted = ""
+
+    for c in ciphertext:
+
+        if c.isupper():
+
+            c_index = ord(c) - ord('A')
+
+            # shift the current character to left by key positions to get its original position
+            c_og_pos = (c_index - key) % 26 + ord('A')
+
+            c_og = chr(c_og_pos)
+
+            decrypted += c_og
+
+        elif c.islower():
+
+            c_index = ord(c) - ord('a')
+
+            c_og_pos = (c_index - key) % 26 + ord('a')
+
+            c_og = chr(c_og_pos)
+
+            decrypted += c_og
+
+        elif c.isdigit():
+
+            # if it's a number,shift its actual value
+            c_og = (int(c) - key) % 10
+
+            decrypted += str(c_og)
+
+        else:
+
+            # if its neither alphabetical nor a number, just leave it like that
+            decrypted += c
+
+    return decrypted
+
+
 @api_view(['GET', 'POST'])
 def hello_world(request):
     if request.method == 'POST':
@@ -238,13 +325,19 @@ def client_details(request):
 @api_view(['GET'])
 def testQR(request):
     qr = request.GET.get('identifier', None)
+    client_id = request.GET.get('client_id', None)
 
-    if qr == "1":
+    try:
+        identifier = json.loads(cipher_decrypt(qr, int(client_id)))
+
+        cursor.execute("UPDATE orders SET status='delivered' WHERE order_id="+str(identifier['order_id']))
+        conn.commit()
+
         return Response({
             "success": True,
             "status": "Order Successfully Delivered",
         })
-    else:
+    except (json.JSONDecodeError, pymysql.Error):
         return Response({
             "success": False,
             "status": "Order Delivery Rejected! Invalid credentials!",
@@ -255,9 +348,19 @@ def testQR(request):
 def getQR(request):
     order_id = request.GET.get('order_id', None)
 
+    cursor.execute("SELECT client_id, partner_id FROM orders WHERE order_id="+order_id)
+    conn.commit()
+
+    result = cursor.fetchone()
+
+    identifier_str = json.dumps({
+        'order_id'   : int(order_id),
+        'client_id'  : result[0],
+        'partner_id' : result[1]}
+    )
 
     return Response({
-        "identifier": "1"
+        "identifier": cipher_encrypt( identifier_str, int(result[0]) )
     })
 
 
